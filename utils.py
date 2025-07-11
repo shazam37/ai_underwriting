@@ -13,8 +13,6 @@ load_dotenv()
 
 openai_api_key = os.getenv('OPENAI_API_KEY')
 
-# OPENAIAPIKEY = "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"
-
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
