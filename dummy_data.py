@@ -17,35 +17,23 @@ def init_dummy_data():
         DrivingLicense(
             id=str(uuid.uuid4()),
             license_number="123456789",
-            full_name="John Doe",
+            first_name="John",
+            last_name="Doe",
             date_of_birth=date(1990, 5, 15),
             address="123 Main St, Anytown, CA 90210",
-            state="CA",
-            class_type="C",
             issue_date=date(2020, 1, 15),
             expiration_date=date(2025, 1, 15),
-            restrictions="None",
-            endorsements="None",
-            height="5'10\"",
-            weight="175 lbs",
-            eye_color="Brown",
             sex="M"
         ),
         DrivingLicense(
             id=str(uuid.uuid4()),
             license_number="B9876543",
-            full_name="Jane Smith",
+            first_name="Jane",
+            last_name="Smith",
             date_of_birth=date(1985, 8, 22),
             address="456 Oak Ave, Springfield, NY 12345",
-            state="NY",
-            class_type="C",
             issue_date=date(2019, 3, 10),
             expiration_date=date(2024, 3, 10),
-            restrictions="Corrective Lenses",
-            endorsements="Motorcycle",
-            height="5'6\"",
-            weight="140 lbs",
-            eye_color="Blue",
             sex="F"
         )
     ]
@@ -55,28 +43,17 @@ def init_dummy_data():
         SSNRecord(
             id=str(uuid.uuid4()),
             ssn="854659582",
-            full_name="John Doe",
-            date_of_birth=date(1990, 5, 15),
-            place_of_birth="Los Angeles, CA",
+            first_name="John",
+            last_name="Doe",
             address="123 Main St, Anytown, CA 90210",
-            phone_number="555-123-4567",
-            employment_status="Employed",
-            employer="Tech Corp Inc.",
-            annual_income="$75,000",
-            marital_status="Single"
+    
         ),
         SSNRecord(
             id=str(uuid.uuid4()),
             ssn="987-65-4321",
-            full_name="Jane Smith",
-            date_of_birth=date(1985, 8, 22),
-            place_of_birth="New York, NY",
+            first_name="Jane",
+            last_name="Smith",
             address="456 Oak Ave, Springfield, NY 12345",
-            phone_number="555-987-6543",
-            employment_status="Employed",
-            employer="Finance Solutions LLC",
-            annual_income="$85,000",
-            marital_status="Married"
         )
     ]
 

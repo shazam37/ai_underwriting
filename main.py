@@ -20,31 +20,30 @@ from schemas import *
 from utils import *
 from dummy_data import init_dummy_data
 
-dotenv_path=Path("../.env")
+# dotenv_path=Path("../.env")
 
-# Load environment variables
-load_dotenv()
+# # Load environment variables
+# load_dotenv()
 
-xai_api_key=os.getenv('XAI_API_KEY')
-uw_key=os.getenv('UW_API_KEY')
-image_extraction_file=os.getenv('IMAGE_HOST_URL')
-
-# xai_api_key = "arya-8J0kYtRh5NOTXIjT9SLy_WwhA-eHWGK8Brbpovm7nGg"
-# uw_key = "a3528b9ce06509d8441e30fed4389b9878702055c77f33104d2e6ab4d46c736c"
+xai_api_key=os.environ.get('XAI_API_KEY')
+uw_key=os.environ.get('UW_API_KEY')
+image_extraction_file=os.environ.get('IMAGE_HOST_URL')
+langflow_url=os.environ.get('LANGLFLOW_URL')
 
 # Initialize FastAPI
 app = FastAPI(title="Document Processing API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or ["https://your-hf-space-url"]
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
+#old::
 # API Endpoints
-@app.post("/upload_personal_documents", response_model=DocumentUploadResponse)
+@app.post("/upload_personal_documents")
 async def upload_personal_documents(
     file: UploadFile = File(...),
     document_type: ApplicationDocumentType = Query(..., description="Type of personal document: driving_license or ssn"),
@@ -70,17 +69,33 @@ async def upload_personal_documents(
         if file_extension == '.pdf':
             image_url = ''
             content = extract_text_from_pdf(file_path)
-            extracted_number = extract_document_with_llm(content, 'text', image_url)
+            verified = verify_document(document_type, 'text', content, image_url)
+            if verified == str('True'):
+                extracted_number = extract_document_with_llm(content, 'text', image_url)
+            elif verified == str('False'):
+                print('Failed verification')
+                return DocumentUploadMessage(
+                        success=False,
+                        message=f"Couldn't Upload the document: {document_type}",
+                        document_type=document_type,
+                        extracted_number="",
+                        file_path=file_path
+                    )
         elif file_extension in ['.jpg', '.png', '.jpeg']:
-            image_url = f"{image_extraction_file}/{file.filename}" 
             content = ''
-            extracted_number = extract_document_with_llm(content, 'image', image_url)
-        # else:
-        #     # For images, we'll simulate OCR + LLM processing
-        #     # In a real implementation, you'd use OCR first, then LLM
-        #     content = f"Simulated OCR content for {document_type} document"
-        
-        # Extract number using LLM
+            image_url = f"{image_extraction_file}/{file.filename}" 
+            verified = verify_document(document_type, 'image', content, image_url)
+            if verified == str('True'):
+                extracted_number = extract_document_with_llm(content, 'image', image_url)
+            elif verified == str('False'):
+                print('Failed verification')
+                return DocumentUploadMessage(
+                        success=False,
+                        message=f"Couldn't Upload the document: {document_type}",
+                        document_type=document_type,
+                        extracted_number="",
+                        file_path=file_path
+                    )
 
         print(f'The number extracted: {extracted_number}')
         
@@ -110,9 +125,10 @@ async def upload_personal_documents(
             pass
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/upload_bank_documents", response_model=ApplicationUploadResponse)
+
+@app.post("/upload_bank_documents")
 async def upload_bank_documents(file: UploadFile = File(...), 
-                                application_type: StatementDocumentType  = Query(..., description="Type of bank document: application or statement"),
+                                application_type: StatementDocumentType  = Query(..., description="Type of bank document: bank_application or bank_statement"),
                                 db: Session = Depends(get_db)):
 
     # Validate file type
@@ -128,12 +144,60 @@ async def upload_bank_documents(file: UploadFile = File(...),
     # Save file locally
     file_path = save_file(file)
 
-    content = extract_text_from_pdf(file_path)
+    try:
+
+        content = extract_text_from_pdf(file_path)
+
+        image_url = ''
+
+        verified = verify_document(application_type, 'text', content, image_url)
+
+        if verified == str('True'):
+            try:
+                new_bank_document = ApplicationUploadSave(id = str(uuid.uuid4()),
+                                                            content = content,
+                                                            application_type=application_type,
+                                                            created_at = datetime.now())
+
+                db.add(new_bank_document)
+                db.commit()
+
+                print('Document Saved Successfully')
+
+                return ApplicationUploadMessage(
+                    success=True,
+                    message=f"Successfully extracted {application_type}",
+                    application_type=application_type,
+                    content=content,
+                    file_path=file_path
+                )
+
+            except Exception as e:
+                raise f'Couldnt upload file due to: {e}'
+            
+        elif verified == str('False'):
+            return ApplicationUploadMessage(
+                    success=False,
+                    message=f"Couldn't Upload the document: {application_type}",
+                    application_type=application_type,
+                    content="",
+                    file_path=file_path
+                )
+    except Exception as e:
+        # Clean up file on error
+        try:
+            os.remove(file_path)
+        except:
+            pass
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/save-driving-license/{extracted_number}")
+async def save_driving_license(extracted_number: str, db: Session = Depends(get_db)):
 
     try:
-        new_license_number = ApplicationUploadSave(id = str(uuid.uuid4()),
-                                                    content = content,
-                                                    application_type=application_type,
+        new_license_number = DocumentUploadSave(id = str(uuid.uuid4()),
+                                                    document_type = "driving_license", 
+                                                    extracted_number = extracted_number, 
                                                     created_at = datetime.now())
 
         db.add(new_license_number)
@@ -141,18 +205,10 @@ async def upload_bank_documents(file: UploadFile = File(...),
 
         print('Document Saved Successfully')
 
-        return ApplicationUploadMessage(
-            success=True,
-            message=f"Successfully extracted {application_type}",
-            application_type=application_type,
-            content=content,
-            file_path=file_path
-        )
+        return "DL number uploaded"
 
     except Exception as e:
-        raise f'Couldnt upload file due to: {e}'
-    
-
+        return {f"Couldn't upload DL due to: {e}"}
 
 @app.get("/driving-license/{license_number}", response_model=DrivingLicenseResponse)
 async def get_driving_license(license_number: str, db: Session = Depends(get_db)):
@@ -167,6 +223,25 @@ async def get_driving_license(license_number: str, db: Session = Depends(get_db)
     
     return license_record
 
+@app.post("/save-ssn/{extracted_number}")
+async def save_ssn(extracted_number: str, db: Session = Depends(get_db)):
+
+    try:
+        new_license_number = DocumentUploadSave(id = str(uuid.uuid4()),
+                                                    document_type = "ssn", 
+                                                    extracted_number = extracted_number, 
+                                                    created_at = datetime.now())
+
+        db.add(new_license_number)
+        db.commit()
+
+        print('Document Saved Successfully')
+
+        return "SSN uploaded"
+
+    except Exception as e:
+        return {f"Coulndn't upload SSN due to: {e}"}
+
 @app.get("/ssn/{ssn}", response_model=SSNResponse)
 async def get_ssn_record(ssn: str, db: Session = Depends(get_db)):
     """Get SSN record details by SSN"""
@@ -177,6 +252,44 @@ async def get_ssn_record(ssn: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="SSN record not found")
     
     return ssn_record
+
+@app.post("/save-bank-application")
+async def save_bank_application(request: BankApplicationSchema, db: Session = Depends(get_db)):
+    
+    try:
+        new_license_number = ApplicationUploadSave(id = str(uuid.uuid4()),
+                                                    content = str(request.content),
+                                                    application_type="application",
+                                                    created_at = datetime.now())
+
+        db.add(new_license_number)
+        db.commit()
+
+        print('Application Saved Successfully')
+
+        return "Bank application uploaded"
+
+    except Exception as e:
+        raise f'Couldnt upload application due to: {e}'
+    
+@app.post("/save-bank-statement")
+async def save_bank_statement(request: BankApplicationSchema, db: Session = Depends(get_db)):
+    
+    try:
+        new_license_number = ApplicationUploadSave(id = str(uuid.uuid4()),
+                                                    content = str(request.content),
+                                                    application_type="statement",
+                                                    created_at = datetime.now())
+
+        db.add(new_license_number)
+        db.commit()
+
+        print('Statement Saved Successfully')
+
+        return "Bank application uploaded"
+
+    except Exception as e:
+        raise f'Couldnt upload statement due to: {e}'
 
 @app.get("/bureau-record/{ssn}", response_model=BureauResponse)
 async def get_bureau_record(ssn: str, db: Session = Depends(get_db)):
@@ -231,7 +344,7 @@ async def get_latest_application(db: Session = Depends(get_db)):
     "Get the latest parsed bank application"
 
     latest_app = db.query(ApplicationUploadSave).filter(
-        ApplicationUploadSave.application_type == "application"
+        ApplicationUploadSave.application_type == "bank_application"
     ).order_by(ApplicationUploadSave.created_at.desc()).first()
 
     if not latest_app:
@@ -239,18 +352,18 @@ async def get_latest_application(db: Session = Depends(get_db)):
     
     return latest_app.content
 
-@app.get("/latest_bank_statement", response_model=ApplicationUploadResponse)
+@app.get("/latest_bank_statement")
 async def get_latest_statement(db: Session = Depends(get_db)):
     "Get the latest parsed bank application"
 
     latest_app = db.query(ApplicationUploadSave).filter(
-        ApplicationUploadSave.application_type == "statement"
+        ApplicationUploadSave.application_type == "bank_statement"
     ).order_by(ApplicationUploadSave.created_at.desc()).first()
 
     if not latest_app:
         raise HTTPException(status_code=404, detail="No latest bank application found")
     
-    return latest_app
+    return latest_app.content
 
 @app.get("/driving-licenses", response_model=List[DrivingLicenseResponse])
 async def get_all_driving_licenses(db: Session = Depends(get_db)):
@@ -367,7 +480,7 @@ async def delete_all_records(db: Session = Depends(get_db)):
 @app.get("/get_uw_result/{tag}/{ID}")
 async def get_uw_results(tag: str, ID: str):
     
-    await asyncio.sleep(45)
+    await asyncio.sleep(60)
 
     url =  'https://apiv2.aryaxai.com/v2/project/get-case-profile'
     headers = {
@@ -385,7 +498,7 @@ async def get_uw_results(tag: str, ID: str):
     # return resp_2.json()
 
     try:
-        resp = requests.post(url, headers=headers, json=payload)
+        resp = requests.post(url, headers=headers, json=payload, timeout=400)
         resp.raise_for_status()
     except requests.RequestException as e:
         # network error or non‑200 status
@@ -407,10 +520,54 @@ async def get_uw_results(tag: str, ID: str):
     # except Exception as e:
     #     raise f'An exception occuered: {e}'
 
+@app.post("/post_underwriting_result")
+async def post_underwriting_result(request: UnderwritingInput, db: Session = Depends(get_db)):
+    try:
+        result_id = str(uuid.uuid4())
+        new_result = UnderstatementResult(
+            id=result_id,
+            content=str(request.payload_content),
+        )
+        db.add(new_result)
+        db.commit()
+        db.refresh(new_result)
+        return {"message": "Underwriting result saved successfully", "id": result_id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save: {str(e)}")
+    finally:
+        db.close()
+    
+@app.get("/latest_underwriting_result")
+def get_latest_underwriting_result(db: Session = Depends(get_db)):
+    try:
+        latest_result = (
+            db.query(UnderstatementResult)
+            .order_by(UnderstatementResult.created_at.desc())
+            .first()
+        )
+
+        if not latest_result:
+            raise HTTPException(status_code=404, detail="No underwriting result found.")
+
+        return {
+            "underwriting_analysis": latest_result.content,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving latest result: {str(e)}")
+    finally:
+        db.close()
+
+@app.get("/get_all_underwriting_results", response_model=List[UnderstatementResponse])
+async def get_all_underwriting_results(db: Session = Depends(get_db)):
+    """Get all driving license records"""
+    understatement = db.query(UnderstatementResult).all()
+    return understatement
+
 @app.get("/run_underwriting_flow")
 async def run_underwriting_flow():
     
-    url = "https://aiagents.aryaxai.com/api/v1/run/de1e6e41-d47c-422b-b388-3ca469314bac"  # The complete API endpoint URL for this flow
+    url = langflow_url
 
     # Request payload configuration
     payload = {
@@ -423,12 +580,12 @@ async def run_underwriting_flow():
     # Request headers
     headers = {
         "Content-Type": "application/json",
-        "x-api-key": xai_api_key  # Authentication key from environment variable
+        "x-api-key": xai_api_key  # Authentication key from environment variable    
     }
 
     try:
         # Send API request
-        response = requests.request("POST", url, json=payload, headers=headers)
+        response = requests.request("POST", url, json=payload, headers=headers, timeout=900)
         response.raise_for_status()  # Raise exception for bad status codes
 
         # Print response

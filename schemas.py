@@ -8,40 +8,28 @@ class ApplicationDocumentType(str, Enum):
     SSN = "ssn"
 
 class StatementDocumentType(str, Enum):
-    APPLICATION = "application"
-    STATEMENT = "statement"
+    BANK_APPLICATION = "bank_application"
+    BANK_STATEMENT = "bank_statement"
 
 # Pydantic models for responses
 class DrivingLicenseResponse(BaseModel):
     id: str
     license_number: str
-    full_name: str
+    first_name: str
+    last_name: str
     date_of_birth: date
     address: str
-    state: str
-    class_type: str
     issue_date: date
     expiration_date: date
-    restrictions: Optional[str]
-    endorsements: Optional[str]
-    height: str
-    weight: str
-    eye_color: str
     sex: str
     created_at: datetime
 
 class SSNResponse(BaseModel):
     id: str
     ssn: str
-    full_name: str
-    date_of_birth: date
-    place_of_birth: str
+    first_name: str
+    last_name: str
     address: str
-    phone_number: str
-    employment_status: str
-    employer: str
-    annual_income: str
-    marital_status: str
     created_at: datetime
 
 class DocumentUploadMessage(BaseModel):
@@ -199,3 +187,14 @@ class ApplicationUploadResponse(BaseModel):
     content: str
     application_type: str
     created_at: Optional[datetime] = None
+
+class UnderstatementResponse(BaseModel):
+    id: Optional[str] = None
+    content: str
+    created_at: datetime
+
+class UnderwritingInput(BaseModel):
+    payload_content: str
+
+class BankApplicationSchema(BaseModel):
+    content: str

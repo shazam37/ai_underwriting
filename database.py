@@ -23,18 +23,12 @@ class DrivingLicense(Base):
     
     id = Column(String, primary_key=True, index=True)
     license_number = Column(String, unique=True, index=True)
-    full_name = Column(String)
+    first_name = Column(String)
+    last_name = Column(String)
     date_of_birth = Column(Date)
     address = Column(String)
-    state = Column(String)
-    class_type = Column(String)  # Class A, B, C, etc.
     issue_date = Column(Date)
     expiration_date = Column(Date)
-    restrictions = Column(String)
-    endorsements = Column(String)
-    height = Column(String)
-    weight = Column(String)
-    eye_color = Column(String)
     sex = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -43,15 +37,9 @@ class SSNRecord(Base):
     
     id = Column(String, primary_key=True, index=True)
     ssn = Column(String, unique=True, index=True)
-    full_name = Column(String)
-    date_of_birth = Column(Date)
-    place_of_birth = Column(String)
+    first_name = Column(String),
+    last_name = Column(String)
     address = Column(String)
-    phone_number = Column(String)
-    employment_status = Column(String)
-    employer = Column(String)
-    annual_income = Column(String)
-    marital_status = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Bureau(Base):
@@ -202,6 +190,13 @@ class ApplicationUploadSave(Base):
     id = Column(String, primary_key=True, index=True)
     content = Column(String)
     application_type = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class UnderstatementResult(Base):
+    __tablename__ = "understatement_result"
+
+    id = Column(String, primary_key=True, index=True)
+    content = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 # Create tables
