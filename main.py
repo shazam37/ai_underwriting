@@ -22,6 +22,7 @@ from dummy_data import init_dummy_data
 import cloudinary
 from cloudinary.utils import cloudinary_url
 from cloudinary.uploader import upload as cloudinary_upload
+from database import Base, engine
 
 # dotenv_path=Path("../.env")
 
@@ -36,6 +37,8 @@ cloudinary_api_secret=os.environ.get('CLOUDINARY_API_SECRET')
 
 # Initialize FastAPI
 app = FastAPI(title="Document Processing API", version="1.0.0")
+
+Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,
