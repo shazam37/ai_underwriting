@@ -38,6 +38,8 @@ cloudinary_api_secret=os.environ.get('CLOUDINARY_API_SECRET')
 # Initialize FastAPI
 app = FastAPI(title="Document Processing API", version="1.0.0")
 
+Base.metadata.drop_all(bind=engine)
+
 Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
