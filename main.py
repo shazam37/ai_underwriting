@@ -19,6 +19,9 @@ from database import *
 from schemas import *
 from utils import *
 from dummy_data import init_dummy_data
+import cloudinary
+from cloudinary.utils import cloudinary_url
+from cloudinary.uploader import upload as cloudinary_upload
 
 # dotenv_path=Path("../.env")
 
@@ -29,6 +32,7 @@ xai_api_key=os.environ.get('XAI_API_KEY')
 uw_key=os.environ.get('UW_API_KEY')
 image_extraction_file=os.environ.get('IMAGE_HOST_URL')
 langflow_url=os.environ.get('LANGLFLOW_URL')
+cloudinary_api_secret=os.environ.get('CLOUDINARY_API_SECRET')
 
 # Initialize FastAPI
 app = FastAPI(title="Document Processing API", version="1.0.0")
@@ -39,6 +43,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+)
+
+cloudinary.config( 
+    cloud_name = "dt0ov4rhl", 
+    api_key = "569273936667352", 
+    api_secret = cloudinary_api_secret,
+    secure=True
 )
 
 #old::
@@ -62,13 +73,15 @@ async def upload_personal_documents(
         )
     
     # Save file locally
-    file_path = save_file(file)
+    # file_path = save_file(file)
     
     try:
         # Extract content based on file type
         if file_extension == '.pdf':
+            file.file.seek(0)
+            content = extract_text_from_pdf_stream(file.file)
             image_url = ''
-            content = extract_text_from_pdf(file_path)
+            # content = extract_text_from_pdf(file)
             verified = verify_document(document_type, 'text', content, image_url)
             if verified == str('True'):
                 extracted_number = extract_document_with_llm(content, 'text', image_url)
@@ -79,14 +92,18 @@ async def upload_personal_documents(
                         message=f"Couldn't Upload the document: {document_type}",
                         document_type=document_type,
                         extracted_number="",
-                        file_path=file_path
+                        file_path=''
                     )
         elif file_extension in ['.jpg', '.png', '.jpeg']:
             content = ''
-            image_url = f"{image_extraction_file}/{file.filename}" 
+            # image_url = f"https://ac7ebdf3091e.ngrok-free.app/{file.filename}" 
+            upload_result = cloudinary_upload(file.file, resource_type="image")
+            image_url = upload_result['secure_url']
+            print(f'The image URL obtained: {image_url}')
             verified = verify_document(document_type, 'image', content, image_url)
             if verified == str('True'):
                 extracted_number = extract_document_with_llm(content, 'image', image_url)
+
             elif verified == str('False'):
                 print('Failed verification')
                 return DocumentUploadMessage(
@@ -94,8 +111,8 @@ async def upload_personal_documents(
                         message=f"Couldn't Upload the document: {document_type}",
                         document_type=document_type,
                         extracted_number="",
-                        file_path=file_path
-                    )
+                        file_path=image_url
+                    )               
 
         print(f'The number extracted: {extracted_number}')
         
@@ -114,15 +131,10 @@ async def upload_personal_documents(
             message=f"Successfully extracted {document_type} number",
             document_type=document_type,
             extracted_number=extracted_number,
-            file_path=file_path
+            file_path=''
         )
         
-    except Exception as e:
-        # Clean up file on error
-        try:
-            os.remove(file_path)
-        except:
-            pass
+    except Exception as e:         
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -142,11 +154,15 @@ async def upload_bank_documents(file: UploadFile = File(...),
         )
     
     # Save file locally
-    file_path = save_file(file)
+    # file_path = save_file(file)
 
     try:
 
-        content = extract_text_from_pdf(file_path)
+        file.file.seek(0)
+
+        # content = extract_text_from_pdf(file_path)
+
+        content = extract_text_from_pdf_stream(file.file)
 
         image_url = ''
 
@@ -169,7 +185,7 @@ async def upload_bank_documents(file: UploadFile = File(...),
                     message=f"Successfully extracted {application_type}",
                     application_type=application_type,
                     content=content,
-                    file_path=file_path
+                    file_path=''
                 )
 
             except Exception as e:
@@ -181,14 +197,9 @@ async def upload_bank_documents(file: UploadFile = File(...),
                     message=f"Couldn't Upload the document: {application_type}",
                     application_type=application_type,
                     content="",
-                    file_path=file_path
+                    file_path=''
                 )
     except Exception as e:
-        # Clean up file on error
-        try:
-            os.remove(file_path)
-        except:
-            pass
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/save-driving-license/{extracted_number}")

@@ -25,6 +25,17 @@ def extract_text_from_pdf(pdf_path: str) -> str:
             return text
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error reading PDF: {str(e)}")
+    
+def extract_text_from_pdf_stream(file_stream) -> str:
+    """Extract text directly from in-memory uploaded PDF file"""
+    try:
+        pdf_reader = PyPDF2.PdfReader(file_stream)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() or ""
+        return text
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error reading PDF: {str(e)}")
 
 def extract_document_with_llm(content: str, document_type: str, image_url: str) -> str:
     """Extract license/SSN number using LLM (OpenAI)"""
