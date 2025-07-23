@@ -43,7 +43,7 @@ class SSNRecord(Base):
     
     id = Column(String, primary_key=True, index=True)
     ssn = Column(String, unique=True, index=True)
-    first_name = Column(String),
+    first_name = Column(String)
     last_name = Column(String)
     address = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
